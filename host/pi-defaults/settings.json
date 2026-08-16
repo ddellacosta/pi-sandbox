@@ -1,0 +1,6 @@
+{
+  "defaultProvider": "ollama",
+  "defaultModel": "glm-5.2:cloud",
+  "skills": ["/root/.pi/agent/skills/network-tools"],
+  "externalEditor": "vim"
+}

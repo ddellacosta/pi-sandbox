@@ -1,0 +1,19 @@
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Nix
+result
+result-*
+
+# NixOS VM disk images
+*.qcow2
+*.raw
+
+# Generated runtime state (created on first run)
+workspace/pi-npm/
+workspace/pi-config/
