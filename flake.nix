@@ -28,14 +28,16 @@
             "-netdev tap,id=net0,ifname=${sandbox.tap},script=no,downscript=no"
             "-device virtio-net-pci,netdev=net0"
           ];
-
-          # Share the workspace directory via virtio-9p.
-          virtualisation.fileSystems = [{
-            mount_tag = "workspace";
-            mount_type = "9p";
-            source = sandbox.workspaceHostPath;
-          }];
         };
+
+        # Share the workspace directory via virtio-9p. This is a QEMU-specific
+        # option and must be at the top-level virtualisation.fileSystems, not
+        # nested inside virtualisation.vmVariant.
+        virtualisation.fileSystems = [{
+          mount_tag = "workspace";
+          mount_type = "9p";
+          source = sandbox.workspaceHostPath;
+        }];
 
         # Static network configuration inside the VM.
         networking.useDHCP = false;
