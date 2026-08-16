@@ -62,7 +62,12 @@ in
           }
 
           chain input {
-            type filter hook input priority 0; policy accept;
+            type filter hook input priority -10; policy accept;
+
+            # Accept established/related traffic (replies to VM requests) so
+            # the NixOS firewall cannot drop them first.
+            ct state established,related accept
+
             iifname "${sandbox.bridge}" jump sandbox_input
           }
 
@@ -86,7 +91,11 @@ in
           }
 
           chain forward {
-            type filter hook forward priority 0; policy accept;
+            type filter hook forward priority -10; policy accept;
+
+            # Accept return traffic to the VM before other firewalls inspect it.
+            ct state established,related accept
+
             iifname "${sandbox.bridge}" jump sandbox_forward
           }
 

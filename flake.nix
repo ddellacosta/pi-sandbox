@@ -65,7 +65,7 @@
         ];
 
         environment.extraInit = ''
-          export PATH="$PATH:/root/.npm-global/bin"
+          export PATH="$PATH:/root/.npm-global/bin:/root/.npm-global/lib/node_modules/.bin"
         '';
 
         environment.variables = {
