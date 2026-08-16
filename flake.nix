@@ -29,10 +29,12 @@
             "-device virtio-net-pci,netdev=net0"
           ];
 
-          # Share the workspace directory via virtio-9p.
+          # Share the workspace directory via virtio-9p. The source path is a
+          # shell variable that the run script exports before launching the VM,
+          # so it works regardless of the repository location.
           virtualisation.sharedDirectories = {
             workspace = {
-              source = sandbox.workspaceHostPath;
+              source = "$PI_SANDBOX_WORKSPACE";
               target = sandbox.workspaceVmMountPoint;
               securityModel = "passthrough";
             };
@@ -175,6 +177,8 @@
         echo "  Gateway/Ollama:      ${sandbox.hostIp}:${toString sandbox.ollamaPort}"
         echo "  DNS:                 ${lib.concatStringsSep ", " sandbox.dns}"
         echo ""
+
+        export PI_SANDBOX_WORKSPACE="$REPO_ROOT/${sandbox.workspaceHostPath}"
 
         cd "$REPO_ROOT"
         exec "${builtVm}/bin/run-nixos-vm" "$@"
