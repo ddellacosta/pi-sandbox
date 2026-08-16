@@ -169,13 +169,20 @@
           echo "✅ Pi $PI_VERSION already installed in ./${sandbox.workspaceHostPath}/pi-npm"
         fi
 
-        # Some npm versions do not create the prefix bin directory for scoped
-        # packages. Ensure a pi symlink exists pointing at the package's CLI.
+        # Some npm layouts do not create the prefix bin directory for scoped
+        # packages. Ensure a `pi` wrapper exists that invokes the package CLI
+        # with the pinned Node.js runtime.
         PI_BIN="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/bin"
-        PI_CLI="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+        PI_PKG="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent"
+        PI_CLI="$PI_PKG/dist/cli.js"
         mkdir -p "$PI_BIN"
         if [ -f "$PI_CLI" ] && [ ! -e "$PI_BIN/pi" ]; then
-          ln -s "$PI_CLI" "$PI_BIN/pi"
+          cat > "$PI_BIN/pi" <<EOF
+#!/usr/bin/env bash
+exec ${pkgs.nodejs}/bin/node "$PI_CLI" "\$@"
+EOF
+          chmod +x "$PI_BIN/pi"
+          echo "   Created $PI_BIN/pi wrapper"
         fi
 
         echo ""

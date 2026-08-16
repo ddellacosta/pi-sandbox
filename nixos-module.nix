@@ -70,8 +70,7 @@ in
           chain input {
             type filter hook input priority -10; policy accept;
 
-            # Accept established/related traffic (replies to VM requests) so
-            # the NixOS firewall cannot drop them first.
+            # Accept return traffic before any other table can drop it.
             ct state established,related accept
 
             iifname "${sandbox.bridge}" jump sandbox_input
@@ -85,8 +84,7 @@ in
             ip daddr @dns_resolvers udp dport 53 accept
             ip daddr @dns_resolvers tcp dport 53 accept
 
-            # Host Ollama server. Ollama must be listening on ${sandbox.ollamaIp}
-            # (or on 0.0.0.0) for this to work.
+            # Host Ollama server.
             ip daddr ${sandbox.ollamaIp} tcp dport ${toString sandbox.ollamaPort} accept
 
             # Future milestone: whitelist proxy on the host.
@@ -99,8 +97,13 @@ in
           chain forward {
             type filter hook forward priority -10; policy accept;
 
-            # Accept return traffic to the VM before other firewalls inspect it.
+            # Accept return traffic to the VM before other tables can drop it.
             ct state established,related accept
+
+            # Also accept any traffic destined back to the sandbox bridge,
+            # regardless of which interface it arrived on. This covers replies
+            # from external DNS resolvers and (later) the whitelist proxy.
+            oifname "${sandbox.bridge}" ct state established,related accept
 
             iifname "${sandbox.bridge}" jump sandbox_forward
           }
