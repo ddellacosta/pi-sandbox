@@ -103,9 +103,10 @@ in
 
           chain postrouting {
             type nat hook postrouting priority 100; policy accept;
-            # Masquerade outbound traffic so DNS answers and allowed connections
-            # return to the host and can be forwarded to the VM.
-            oifname != "${sandbox.bridge}" masquerade
+            # Masquerade outbound traffic from the sandbox subnet so DNS answers
+            # and allowed connections return to the host and can be forwarded to
+            # the VM.
+            ip saddr ${sandbox.subnet} oifname != "${sandbox.bridge}" masquerade
           }
         }
       '';
