@@ -28,16 +28,16 @@
             "-netdev tap,id=net0,ifname=${sandbox.tap},script=no,downscript=no"
             "-device virtio-net-pci,netdev=net0"
           ];
-        };
 
-        # Share the workspace directory via virtio-9p. This is a QEMU-specific
-        # option and must be at the top-level virtualisation.fileSystems, not
-        # nested inside virtualisation.vmVariant.
-        virtualisation.fileSystems = [{
-          mount_tag = "workspace";
-          mount_type = "9p";
-          source = sandbox.workspaceHostPath;
-        }];
+          # Share the workspace directory via virtio-9p.
+          virtualisation.sharedDirectories = {
+            workspace = {
+              source = sandbox.workspaceHostPath;
+              target = sandbox.workspaceVmMountPoint;
+              securityModel = "passthrough";
+            };
+          };
+        };
 
         # Static network configuration inside the VM.
         networking.useDHCP = false;
@@ -48,13 +48,6 @@
           address = sandbox.vmIp;
           prefixLength = 24;
         }];
-
-        # Mount the workspace share inside the VM.
-        fileSystems."${sandbox.workspaceVmMountPoint}" = {
-          fsType = "9p";
-          device = "workspace";
-          options = [ "trans=virtio" "version=9p2000.L" "msize=1048576" "rw" ];
-        };
 
         # No VM-internal firewall. Enforcement is on the host.
         networking.firewall.enable = false;
