@@ -169,6 +169,15 @@
           echo "✅ Pi $PI_VERSION already installed in ./${sandbox.workspaceHostPath}/pi-npm"
         fi
 
+        # Some npm versions do not create the prefix bin directory for scoped
+        # packages. Ensure a pi symlink exists pointing at the package's CLI.
+        PI_BIN="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/bin"
+        PI_CLI="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+        mkdir -p "$PI_BIN"
+        if [ -f "$PI_CLI" ] && [ ! -e "$PI_BIN/pi" ]; then
+          ln -s "$PI_CLI" "$PI_BIN/pi"
+        fi
+
         echo ""
         echo "Starting Pi sandbox VM..."
         echo "  Workspace host path: $REPO_ROOT/${sandbox.workspaceHostPath}"

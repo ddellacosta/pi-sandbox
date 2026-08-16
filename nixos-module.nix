@@ -19,6 +19,12 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Tell the NixOS firewall to trust traffic from the sandbox bridge.
+    # Our pi-sandbox nftables table (which runs at an earlier priority) is the
+    # real enforcement point; this just prevents the default NixOS firewall
+    # from dropping allowed VM traffic after we have already accepted it.
+    networking.firewall.trustedInterfaces = [ sandbox.bridge ];
+
     # The bridge gives the host a presence in the sandbox subnet.
     networking.bridges.${sandbox.bridge}.interfaces = [ sandbox.tap ];
     networking.interfaces.${sandbox.bridge}.ipv4.addresses = [{
