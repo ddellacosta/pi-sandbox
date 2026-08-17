@@ -171,7 +171,8 @@
 
         # Some npm layouts do not create the prefix bin directory for scoped
         # packages. Ensure a `pi` wrapper exists that invokes the package CLI
-        # with the pinned Node.js runtime.
+        # with the pinned Node.js runtime. Do this every run in case the
+        # workspace was seeded from defaults without a wrapper.
         PI_BIN="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/bin"
         PI_PKG="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent"
         PI_CLI="$PI_PKG/dist/cli.js"
