@@ -180,32 +180,31 @@
           echo "✅ Pi $PI_VERSION already installed in ./${sandbox.workspaceHostPath}/pi-npm"
         fi
 
-        # Find the installed Pi package regardless of whether npm used
-        # lib/node_modules or node_modules under the prefix. The wrapper must
-        # use the VM-mounted path (/mnt/shared/...), not the host repository
-        # path, because it runs inside the VM.
+        # Find the installed Pi package on the host, then compute the path
+        # the wrapper will see inside the VM (/mnt/shared/...).
         PI_BIN="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/bin"
-        PI_PKG=""
-        for candidate in \
-          "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent" \
-          "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/node_modules/@earendil-works/pi-coding-agent"; do
-          if [ -f "$candidate/package.json" ]; then
-            PI_PKG="$candidate"
+        PI_PKG_HOST=""
+        PI_PKG_VM=""
+        for rel in \
+          "lib/node_modules/@earendil-works/pi-coding-agent" \
+          "node_modules/@earendil-works/pi-coding-agent"; do
+          candidate_host="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/$rel"
+          if [ -f "$candidate_host/package.json" ]; then
+            PI_PKG_HOST="$candidate_host"
+            PI_PKG_VM="${sandbox.workspaceVmMountPoint}/pi-npm/$rel"
             break
           fi
         done
 
-        if [ -z "$PI_PKG" ]; then
+        if [ -z "$PI_PKG_HOST" ]; then
           echo "❌ Could not find installed @earendil-works/pi-coding-agent package" >&2
           echo "   Looked under ./${sandbox.workspaceHostPath}/pi-npm/lib/node_modules and ./node_modules" >&2
           exit 1
         fi
 
-        # Compute the path the wrapper will see inside the VM.
-        PI_PKG_VM="${sandbox.workspaceVmMountPoint}${PI_PKG#"$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm"}"
         PI_CLI_VM="$PI_PKG_VM/dist/cli.js"
         mkdir -p "$PI_BIN"
-        if [ -f "$PI_PKG/dist/cli.js" ] && [ ! -e "$PI_BIN/pi" ]; then
+        if [ -f "$PI_PKG_HOST/dist/cli.js" ] && [ ! -e "$PI_BIN/pi" ]; then
           cat > "$PI_BIN/pi" <<EOF
 #!/usr/bin/env bash
 exec ${pkgs.nodejs}/bin/node "$PI_CLI_VM" "\$@"
