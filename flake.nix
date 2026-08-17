@@ -181,7 +181,9 @@
         fi
 
         # Find the installed Pi package regardless of whether npm used
-        # lib/node_modules or node_modules under the prefix.
+        # lib/node_modules or node_modules under the prefix. The wrapper must
+        # use the VM-mounted path (/mnt/shared/...), not the host repository
+        # path, because it runs inside the VM.
         PI_BIN="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/bin"
         PI_PKG=""
         for candidate in \
@@ -199,12 +201,14 @@
           exit 1
         fi
 
-        PI_CLI="$PI_PKG/dist/cli.js"
+        # Compute the path the wrapper will see inside the VM.
+        PI_PKG_VM="${sandbox.workspaceVmMountPoint}${PI_PKG#"$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm"}"
+        PI_CLI_VM="$PI_PKG_VM/dist/cli.js"
         mkdir -p "$PI_BIN"
-        if [ -f "$PI_CLI" ] && [ ! -e "$PI_BIN/pi" ]; then
+        if [ -f "$PI_PKG/dist/cli.js" ] && [ ! -e "$PI_BIN/pi" ]; then
           cat > "$PI_BIN/pi" <<EOF
 #!/usr/bin/env bash
-exec ${pkgs.nodejs}/bin/node "$PI_CLI" "\$@"
+exec ${pkgs.nodejs}/bin/node "$PI_CLI_VM" "\$@"
 EOF
           chmod +x "$PI_BIN/pi"
           echo "   Created $PI_BIN/pi wrapper"
