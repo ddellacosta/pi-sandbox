@@ -72,6 +72,12 @@
           NPM_CONFIG_PREFIX = "/root/.npm-global";
           EDITOR = "vim";
           VISUAL = "vim";
+          # Route all HTTP/HTTPS through the host whitelist proxy. Direct
+          # outbound TCP 80/443 is still dropped by the host firewall, so a
+          # process that ignores these variables cannot bypass the proxy.
+          HTTP_PROXY = "http://${sandbox.hostIp}:8080";
+          HTTPS_PROXY = "http://${sandbox.hostIp}:8080";
+          NO_PROXY = "localhost,127.0.0.1,${sandbox.hostIp}";
         };
 
         # Symlink Pi runtime config and the pre-installed package tree from the
@@ -90,10 +96,11 @@
           ║         Welcome to the Pi Sandbox!                      ║
           ╠═══════════════════════════════════════════════════════════╣
           ║                                                           ║
-          ║  NETWORK MODE: WHITELISTED (DNS + Ollama only for now)    ║
+          ║  NETWORK MODE: WHITELISTED                                ║
           ║  • DNS resolvers: ${lib.concatStringsSep ", " sandbox.dns}                            ║
           ║  • Ollama host:   ${sandbox.ollamaIp}:${toString sandbox.ollamaPort}                             ║
-          ║  • General HTTP/HTTPS is blocked by host firewall         ║
+          ║  • Whitelist proxy: ${sandbox.hostIp}:8080                             ║
+          ║  • Direct TCP 80/443 to internet is blocked             ║
           ║                                                           ║
           ║  Shared workspace: ${sandbox.workspaceVmMountPoint}                            ║
           ║  Maps to host:     ./${sandbox.workspaceHostPath}/                                    ║
@@ -102,7 +109,7 @@
           ║    pi                         # Start Pi agent            ║
           ║    dig example.com            # Test DNS                  ║
           ║    curl http://${sandbox.ollamaIp}:${toString sandbox.ollamaPort}/ # Ollama  ║
-          ║    curl -v https://example.com  # Should be blocked       ║
+          ║    curl -v https://example.com  # Blocked until whitelisted ║
           ╚═══════════════════════════════════════════════════════════╝
         '';
       };
@@ -241,6 +248,7 @@ EOF
           python3
           nftables
           iproute2
+          mitmproxy
         ];
         shellHook = ''
           echo "Pi Sandbox development shell"

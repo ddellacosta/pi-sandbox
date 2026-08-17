@@ -37,7 +37,12 @@ fi
 
 echo "❌ HTTPS/HTTP: Connection failed"
 echo ""
-echo "Status: BLOCKED by sandbox firewall or proxy."
-echo "Whitelist proxy support will be added next."
+echo "Status: BLOCKED by sandbox proxy or firewall."
+echo ""
+echo "To allow access, add to whitelist (on the host, repo root):"
+echo ""
+echo "   sudo ./host/pi-sandbox-whitelist add $DOMAIN"
+echo ""
+echo "The proxy reloads the file automatically - no VM restart needed."
 
 exit 1

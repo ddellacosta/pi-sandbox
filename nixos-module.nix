@@ -4,6 +4,8 @@
 let
   cfg = config.services.pi-sandbox;
   sandbox = import ./lib/sandbox-config.nix;
+  proxyPort = 8080;
+  whitelistFile = "/etc/pi-sandbox/whitelist.conf";
 in
 {
   options.services.pi-sandbox = {
@@ -42,7 +44,7 @@ in
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStart = pkgs.writeShellScript "pi-sandbox-tap-up" ''
-          if ! ${pkgs.iproute2}/bin/ip link show ${sandbox.tap} >/dev/null 2>&1; then
+          if ! ${pkgs.iproute2}/bin/ip link show ${sandbox.tap} > /dev/null 2>&1; then
             ${pkgs.iproute2}/bin/ip tuntap add dev ${sandbox.tap} mode tap user ${cfg.user}
           fi
           ${pkgs.iproute2}/bin/ip link set ${sandbox.tap} up
@@ -51,6 +53,35 @@ in
           ${pkgs.iproute2}/bin/ip link set ${sandbox.tap} nomaster 2>/dev/null || true
           sleep 0.1
           ${pkgs.iproute2}/bin/ip link delete ${sandbox.tap} 2>/dev/null || true
+        '';
+      };
+    };
+
+    # Whitelist proxy: mitmproxy listens only on the sandbox bridge IP.
+    # The VM routes all HTTP/HTTPS through this proxy. It is non-decrypting:
+    # HTTPS domains are read from CONNECT requests before TLS starts.
+    systemd.services.pi-sandbox-proxy = {
+      description = "Pi sandbox whitelist proxy";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "network.target" ];
+      serviceConfig = {
+        Type = "simple";
+        Restart = "always";
+        RestartSec = 2;
+        ExecStart = pkgs.writeShellScript "pi-sandbox-proxy" ''
+          # Ensure the whitelist file exists, even if empty.
+          mkdir -p "$(dirname "${whitelistFile}")"
+          if [ ! -f "${whitelistFile}" ]; then
+            echo "# Pi sandbox whitelist" > "${whitelistFile}"
+            echo "# One domain per line" >> "${whitelistFile}"
+          fi
+
+          export PI_SANDBOX_WHITELIST="${whitelistFile}"
+          exec ${pkgs.mitmproxy}/bin/mitmdump \
+            --mode regular \
+            --listen-host ${sandbox.hostIp} \
+            --listen-port ${toString proxyPort} \
+            --scripts ${./host/mitmproxy/whitelist-addon.py}
         '';
       };
     };
@@ -87,8 +118,8 @@ in
             # Host Ollama server.
             ip daddr ${sandbox.ollamaIp} tcp dport ${toString sandbox.ollamaPort} accept
 
-            # Future milestone: whitelist proxy on the host.
-            # ip daddr ${sandbox.ollamaIp} tcp dport 8080 accept
+            # Host whitelist proxy (mitmproxy).
+            ip daddr ${sandbox.hostIp} tcp dport ${toString proxyPort} accept
 
             # Default drop for anything else coming from the sandbox.
             drop
@@ -101,20 +132,19 @@ in
             ct state established,related accept
 
             # Also accept any traffic destined back to the sandbox bridge,
-            # regardless of which interface it arrived on. This covers replies
-            # from external DNS resolvers and (later) the whitelist proxy.
+            # regardless of which interface it arrived on.
             oifname "${sandbox.bridge}" ct state established,related accept
 
             iifname "${sandbox.bridge}" jump sandbox_forward
           }
 
           chain sandbox_forward {
-            # DNS only in the first milestone.
+            # DNS only.
             ip daddr @dns_resolvers udp dport 53 accept
             ip daddr @dns_resolvers tcp dport 53 accept
 
-            # Future milestone: whitelist proxy on the host.
-            # ip daddr ${sandbox.ollamaIp} tcp dport 8080 accept
+            # Whitelist proxy on the host.
+            ip daddr ${sandbox.hostIp} tcp dport ${toString proxyPort} accept
 
             drop
           }

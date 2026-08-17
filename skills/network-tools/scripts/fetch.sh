@@ -38,7 +38,11 @@ else
     echo ""
     echo "🔒 This looks like a NETWORK ISOLATION block."
     echo ""
-    echo "In the current milestone only DNS and Ollama are allowed."
-    echo "Whitelist proxy support will be added next."
+    echo "✅ To allow access, add the domain to the host whitelist:"
+    echo ""
+    echo "   On the host (repo root):"
+    echo "   sudo ./host/pi-sandbox-whitelist add $HOSTNAME"
+    echo ""
+    echo "The proxy reloads the file automatically - no VM restart needed."
     exit 1
 fi
