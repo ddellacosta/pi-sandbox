@@ -204,7 +204,9 @@
 
         PI_CLI_VM="$PI_PKG_VM/dist/cli.js"
         mkdir -p "$PI_BIN"
-        if [ -f "$PI_PKG_HOST/dist/cli.js" ] && [ ! -e "$PI_BIN/pi" ]; then
+        # Always recreate the wrapper so the VM-mounted path stays correct even
+        # if the workspace was created by an older version of this script.
+        if [ -f "$PI_PKG_HOST/dist/cli.js" ]; then
           cat > "$PI_BIN/pi" <<EOF
 #!/usr/bin/env bash
 exec ${pkgs.nodejs}/bin/node "$PI_CLI_VM" "\$@"
