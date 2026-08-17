@@ -87,8 +87,8 @@ addon = WhitelistAddon()
 
 
 def load(l):
-    """Configure mitmproxy to pass through all TLS connections without decrypting."""
-    ctx.options.tls_passthrough_hosts = [".*"]
+    """Configure mitmproxy to forward all allowed traffic without decrypting."""
+    ctx.options.ignore_hosts = [".*"]
 
 
 def http_connect(flow):
