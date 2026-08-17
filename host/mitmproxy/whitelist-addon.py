@@ -2,8 +2,12 @@
 """
 mitmproxy addon that enforces a domain whitelist.
 
-Intentionally non-decrypting: HTTPS domains are read from the CONNECT request
-before TLS starts. The addon blocks any domain not listed in the whitelist file.
+Non-decrypting: the whitelist check runs on the CONNECT request (for HTTPS)
+or the plain HTTP request (for HTTP). If a domain is not allowed, the proxy
+returns 403 before any TLS handshake or tunnel is established.
+
+For allowed domains, mitmproxy is configured to pass TLS through without
+decrypting it, so no CA needs to be installed in the VM.
 """
 
 import os
@@ -11,8 +15,6 @@ import time
 from fnmatch import fnmatch
 from mitmproxy import ctx, http
 
-# Allow overriding via environment, but default to a host path outside the VM's
-# writable workspace so the agent cannot modify the whitelist.
 DEFAULT_WHITELIST = "/etc/pi-sandbox/whitelist.conf"
 WHITELIST_FILE = os.environ.get("PI_SANDBOX_WHITELIST", DEFAULT_WHITELIST)
 POLL_INTERVAL = 2  # seconds
@@ -42,7 +44,6 @@ class WhitelistAddon:
                     line = line.strip()
                     if not line or line.startswith("#"):
                         continue
-                    # Strip inline comments and whitespace.
                     domain = line.split()[0].lower()
                     if domain:
                         domains.add(domain)
@@ -52,6 +53,11 @@ class WhitelistAddon:
             ctx.log.info(f"Loaded {len(domains)} whitelisted domain(s) from {WHITELIST_FILE}")
         except Exception as e:
             ctx.log.error(f"Failed to load whitelist: {e}")
+
+    def maybe_reload(self):
+        if time.time() - self.last_check > POLL_INTERVAL:
+            self.load_whitelist()
+            self.last_check = time.time()
 
     def is_allowed(self, hostname):
         """Check if hostname matches any whitelisted domain or its subdomains."""
@@ -63,23 +69,13 @@ class WhitelistAddon:
                 return True
             if hostname.endswith("." + allowed):
                 return True
-            # Optional glob support for convenience (e.g. *.example.com).
             if allowed.startswith("*.") and fnmatch(hostname, allowed):
                 return True
 
         return False
 
-    def check_whitelist(self, flow):
-        """Poll for whitelist updates, then allow or block the flow."""
-        if time.time() - self.last_check > POLL_INTERVAL:
-            self.load_whitelist()
-            self.last_check = time.time()
-
-        host = flow.request.host
-        if self.is_allowed(host):
-            return
-
-        ctx.log.warn(f"Blocked {flow.request.pretty_host}")
+    def block(self, flow, host):
+        ctx.log.warn(f"Blocked {host}")
         flow.response = http.Response.make(
             403,
             b"Forbidden: domain not in whitelist",
@@ -87,9 +83,20 @@ class WhitelistAddon:
         )
 
 
-# Global instance so all worker processes share the same loaded whitelist.
 addon = WhitelistAddon()
 
 
+def http_connect(flow):
+    """Block or allow HTTPS CONNECT requests before any TLS handshake."""
+    addon.maybe_reload()
+    host = flow.request.host
+    if not addon.is_allowed(host):
+        addon.block(flow, host)
+
+
 def request(flow):
-    addon.check_whitelist(flow)
+    """Block or allow plain HTTP requests."""
+    addon.maybe_reload()
+    host = flow.request.host
+    if not addon.is_allowed(host):
+        addon.block(flow, host)

@@ -81,6 +81,7 @@ in
             --mode regular \
             --listen-host ${sandbox.hostIp} \
             --listen-port ${toString proxyPort} \
+            --set tls_passthrough=true \
             --scripts ${./host/mitmproxy/whitelist-addon.py}
         '';
       };
