@@ -22,9 +22,9 @@
           # Console only.
           virtualisation.graphics = false;
 
-          # Attach the VM to the host TAP interface. Real filtering happens on
-          # the host with nftables.
-          virtualisation.qemu.networkingOptions = [
+          # Replace the default QEMU user-mode networking with a TAP interface
+          # connected to the host bridge. Real filtering happens on the host.
+          virtualisation.qemu.networkingOptions = lib.mkForce [
             "-netdev tap,id=net0,ifname=${sandbox.tap},script=no,downscript=no"
             "-device virtio-net-pci,netdev=net0"
           ];
@@ -157,10 +157,14 @@
         # Install or update the pinned Pi version on the host.
         PI_VERSION=$(cat "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/pi-version" 2>/dev/null || echo "${sandbox.piVersion}")
         INSTALLED_VERSION=""
-        if [ -f "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent/package.json" ]; then
-          INSTALLED_VERSION=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("version",""))' \
-            < "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent/package.json")
-        fi
+        for candidate in \
+          "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent/package.json" \
+          "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/node_modules/@earendil-works/pi-coding-agent/package.json"; do
+          if [ -f "$candidate" ]; then
+            INSTALLED_VERSION=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("version",""))' < "$candidate")
+            break
+          fi
+        done
         if [ "$INSTALLED_VERSION" != "$PI_VERSION" ]; then
           echo "📦 Installing Pi $PI_VERSION into ./${sandbox.workspaceHostPath}/pi-npm..."
           npm install --ignore-scripts --prefix "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm" \
@@ -169,12 +173,25 @@
           echo "✅ Pi $PI_VERSION already installed in ./${sandbox.workspaceHostPath}/pi-npm"
         fi
 
-        # Some npm layouts do not create the prefix bin directory for scoped
-        # packages. Ensure a `pi` wrapper exists that invokes the package CLI
-        # with the pinned Node.js runtime. Do this every run in case the
-        # workspace was seeded from defaults without a wrapper.
+        # Find the installed Pi package regardless of whether npm used
+        # lib/node_modules or node_modules under the prefix.
         PI_BIN="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/bin"
-        PI_PKG="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent"
+        PI_PKG=""
+        for candidate in \
+          "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent" \
+          "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/node_modules/@earendil-works/pi-coding-agent"; do
+          if [ -f "$candidate/package.json" ]; then
+            PI_PKG="$candidate"
+            break
+          fi
+        done
+
+        if [ -z "$PI_PKG" ]; then
+          echo "❌ Could not find installed @earendil-works/pi-coding-agent package" >&2
+          echo "   Looked under ./${sandbox.workspaceHostPath}/pi-npm/lib/node_modules and ./node_modules" >&2
+          exit 1
+        fi
+
         PI_CLI="$PI_PKG/dist/cli.js"
         mkdir -p "$PI_BIN"
         if [ -f "$PI_CLI" ] && [ ! -e "$PI_BIN/pi" ]; then
