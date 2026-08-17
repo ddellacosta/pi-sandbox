@@ -93,8 +93,3 @@ addon = WhitelistAddon()
 
 def request(flow):
     addon.check_whitelist(flow)
-
-
-def clientconnect(data):
-    # Poll on new connections too in case the in-memory addon is stale.
-    addon.load_whitelist()
