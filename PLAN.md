@@ -38,7 +38,7 @@ Not running any JavaScript."
 
 | Concern | Pi (current) | Maki (target) |
 |---|---|---|
-| Agent binary | `npm install @earendil-works/pi-coding-agent` → `pi` wrapper exec'ing `node` | single `maki` binary |
+| Agent binary | `npm install @earendil-works/pi-coding-agent` → `pi` wrapper exec'ing `node` | `maki` binary via `fetchurl` (Nix package) |
 | Config location | `~/.pi/agent/{models.json,settings.json}` | `~/.config/maki/` |
 | Provider config | `models.json` (ollama, `baseUrl`, model list) | `OLLAMA_HOST` env var + `--model` |
 | Model selection | `defaultModel` in `settings.json` | `--model ollama/<id>` (or last-used) |
@@ -57,7 +57,8 @@ Not running any JavaScript."
 ### 2. `flake.nix` (VM module)
 
 - `environment.systemPackages`: drop `nodejs_24` (no longer needed by the
-  agent). Keep `git`, `curl`, `wget`, `vim`, `bind`.
+  agent). Add the `maki` package (built from `fetchurl`). Keep `git`, `curl`,
+  `wget`, `vim`, `bind`.
 - `environment.extraInit`: add the maki binary dir to `PATH` instead of
   `/root/.npm-global/bin`.
 - `environment.variables`: add `OLLAMA_HOST = "http://10.0.3.1:11434"`.
@@ -69,8 +70,9 @@ Not running any JavaScript."
 
 ### 3. `flake.nix` (run script)
 
-- Remove the `npm install` / `pi-version` / `pi` wrapper logic.
-- Add Maki binary provisioning (see "Key decision: binary source" below).
+- Remove the `npm install` / `pi-version` / `pi` wrapper logic entirely —
+  the binary is now baked into the VM image via `fetchurl`, so there is no
+  runtime download or wrapper to generate.
 - Seed Maki config from defaults (see "Config" below).
 - Keep the `network-tools` skill sync (retargeted to Maki's skills dir).
 - Rename the app from `pi` to `maki` (keep a `pi` alias during transition if
@@ -112,31 +114,47 @@ to `agent-sandbox-whitelist` is part of the later repo rename, not this branch.
 - Update `.gitignore` workspace entries (`pi-npm/` → `maki/`, `pi-config/` →
   `maki-config/`).
 
-## Key decisions (need your input)
+## Key decisions
 
-### A. Binary source
+### A. Binary source — **decided: `fetchurl` (pre-built)**
 
-- **Option 1 — pre-built binary (recommended).** Download the release asset
-  from GitHub Releases (`maki-<tag>-x86_64-unknown-linux-musl.tar.gz`), the
-  same way `install.sh` does. Fast, no toolchain. Requires the *host* to reach
-  `github.com` + `objects.githubusercontent.com` (the host has full network;
-  the VM does not).
-- **Option 2 — build from source.** `cargo install --git …`. Needs the Rust
-  toolchain and is slow on a 1-CPU box (one-time cost).
+Fetch the pre-built release asset as a fixed-output derivation and wrap it as
+an `stdenv.mkDerivation` package. No compilation, hash-pinned, cached,
+reproducible.
 
-### B. Install location (important for the speed goal)
+```nix
+maki = pkgs.stdenv.mkDerivation {
+  pname = "maki";
+  version = "0.4.11";
+  src = pkgs.fetchurl {
+    url = "https://github.com/tontinton/maki/releases/download/v0.4.11/maki-v0.4.11-x86_64-unknown-linux-musl.tar.gz";
+    hash = "sha256-…"; # pinned once via nix-prefetch-url
+  };
+  sourceRoot = ".";
+  installPhase = ''
+    install -Dm755 maki $out/bin/maki
+  '';
+};
+```
 
-The whole point is to avoid the 9p penalty. A single binary is *much* better
-than 13k files, but reading a ~20 MB binary off 9p is still slow (~0.3 MB/s →
-tens of seconds). So the binary should live on the **VM's local disk**, not
-`/mnt/shared`.
+The `musl` target is statically linked and self-contained, so there are no
+glibc/dynamic-linking surprises in the VM.
 
-- **Option 1 (recommended):** host downloads the binary into the workspace,
-  and the VM copies it to `/root/.local/bin` at boot (a `systemd` oneshot or
-  `tmpfiles` rule). Keeps the existing "host provisions, VM consumes" pattern.
-- **Option 2:** bake the binary into the VM image via `pkgs.fetchurl` at Nix
-  build time. Cleanest runtime, but pins the URL at build time and requires
-  network at build time.
+- **Alternative (rejected for now):** use maki's own `flake.nix` as a flake
+  input (`maki.packages.${system}.default`). That builds from source via
+  crane — a proper Nix package with `nix flake update`-driven bumps, but a
+  heavy one-time local compile (600+ deps, no binary cache).
+
+Pinning the `hash` is a one-time fetch (needs the host to reach `github.com` +
+`objects.githubusercontent.com`). Bumping the version means updating the URL
+and re-pinning the hash.
+
+### B. Install location — **resolved by `fetchurl`**
+
+Because the binary is a Nix package added to the VM's
+`environment.systemPackages`, it lands in the Nix store on the VM's **local
+disk** — not `/mnt/shared`. That avoids the 9p read penalty entirely, with no
+runtime download or boot-time copy.
 
 ### C. Naming scope
 
@@ -148,10 +166,12 @@ tens of seconds). So the binary should live on the **VM's local disk**, not
 
 ## Migration steps (proposed order)
 
-1. Add `makiVersion` and Maki defaults (`host/maki-defaults/`).
-2. Rework the `flake.nix` run script: drop npm, add binary provisioning +
-   config seeding + skill sync.
-3. Rework the VM module: packages, env vars, tmpfiles symlinks, MOTD.
+1. Add the `maki` package (via `fetchurl`) and `makiVersion` to the flake;
+   add Maki defaults (`host/maki-defaults/`).
+2. Rework the `flake.nix` VM module: add `maki` to `systemPackages`, set
+   `OLLAMA_HOST`, update tmpfiles symlinks and MOTD.
+3. Rework the run script: drop npm/wrapper logic, keep config seeding + skill
+   sync.
 4. Retarget `skills/network-tools/`.
 5. Update `README.md` and `.gitignore`.
 6. Test: `nix run .#maki`, confirm `maki` starts instantly and reaches Ollama.
@@ -170,3 +190,5 @@ tens of seconds). So the binary should live on the **VM's local disk**, not
   Maki). This is a feature/UX tradeoff, not a sandbox-architecture one.
 - **`pi` alias.** Decide whether to keep a `pi` alias during transition or cut
   over cleanly.
+- **Hash pinning.** The `fetchurl` hash must be re-pinned on every version
+  bump (URL + `sha256`). A small `nix-prefetch-url` step, but easy to forget.
