@@ -15,5 +15,4 @@ result-*
 *.raw
 
 # Generated runtime state (created on first run)
-workspace/pi-npm/
-workspace/pi-config/
+workspace/maki-config/

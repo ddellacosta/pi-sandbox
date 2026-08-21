@@ -1,7 +1,7 @@
 # Plan: Replace Pi with Maki
 
-> Status: **draft for review** — no code changes made yet. This branch (`maki`) is
-> the working branch for the migration.
+> Status: **implemented** on this branch (`maki`). See the commit history for the
+> code changes.
 
 ## Goal
 

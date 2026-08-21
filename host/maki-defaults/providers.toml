@@ -1,0 +1,6 @@
+# Maki provider overrides.
+# The Ollama host is set via OLLAMA_HOST in the VM environment; this only pins
+# the default model so `maki` starts with a known model instead of the built-in
+# `ollama/qwen3`. Model specs are `provider/model-id`.
+[ollama]
+default_model = "ollama/deepseek-v4-pro:cloud"

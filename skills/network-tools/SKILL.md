@@ -5,7 +5,7 @@ description: Network utilities for detecting sandbox network blocks. Use these t
 
 # Network Tools
 
-Network utilities for the Pi sandbox. These tools detect when network access is blocked and tell you exactly what command to run **on the host** to allow it.
+Network utilities for the Maki sandbox. These tools detect when network access is blocked and tell you exactly what command to run **on the host** to allow it.
 
 The host-side whitelist is at `/etc/pi-sandbox/whitelist.conf` and is managed with `host/pi-sandbox-whitelist`. The proxy reloads it automatically.
 

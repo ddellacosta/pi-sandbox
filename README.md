@@ -1,6 +1,6 @@
-# Pi Sandbox
+# Maki Sandbox
 
-A lightweight NixOS-based VM that runs the [Pi](https://github.com/earendil-works/pi-mono) coding agent with strong host-kernel network isolation, a shared workspace, and a host-enforced HTTP/HTTPS domain whitelist.
+A lightweight NixOS-based VM that runs the [Maki](https://github.com/tontinton/maki) coding agent with strong host-kernel network isolation, a shared workspace, and a host-enforced HTTP/HTTPS domain whitelist.
 
 The VM is attached to the host through a bridge (`br-pi`) and a TAP device (`pi-tap`). The host kernel filters all traffic from the VM with `nftables`. Because the firewall rules and the whitelist proxy live in the host's NixOS configuration, the agent inside the VM cannot modify them.
 
@@ -33,7 +33,7 @@ The VM is attached to the host through a bridge (`br-pi`) and a TAP device (`pi-
 │  • default gateway: 10.0.3.1                     │
 │  • HTTP_PROXY/HTTPS_PROXY = http://10.0.3.1:8080 │
 │  • /mnt/shared workspace via 9p                  │
-│  • Pi process runs here                         │
+│  • Maki process runs here                       │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -106,15 +106,30 @@ OLLAMA_HOST=10.0.3.1:11434 ollama serve
 From the repository root:
 
 ```bash
-nix run .#pi
+nix run .#maki
 ```
 
-### 4. Run Pi
+### 4. Run Maki
 
 Inside the VM:
 
 ```bash
-pi
+maki
+```
+
+## Maki binary
+
+Maki is a single pre-built Rust binary, fetched from GitHub Releases as a
+fixed-output derivation (`pkgs.fetchurl`) and baked into the VM image. It
+lands in the Nix store on the VM's local disk, so startup is instant and does
+not touch the 9p workspace.
+
+The version is pinned in `lib/sandbox-config.nix` (`makiVersion`). The
+`fetchurl` hash is a placeholder (`lib.fakeHash`) until it is pinned once:
+
+```bash
+nix build .#nixosConfigurations.<host>.config.system.build.vm  # or nix run .#maki
+# Nix prints the real hash on the hash-mismatch error; paste it into flake.nix.
 ```
 
 ## Workspace
@@ -123,13 +138,14 @@ The host directory `workspace/` is mounted at `/mnt/shared` inside the VM. It co
 
 | Path | Purpose |
 |------|---------|
-| `workspace/pi-config/models.json` | Pi model configuration |
-| `workspace/pi-config/settings.json` | Pi settings |
-| `workspace/pi-config/skills/network-tools` | Network tools skill |
-| `workspace/pi-npm/` | Pre-installed Pi package tree |
+| `workspace/maki-config/config.toml` | Maki main configuration |
+| `workspace/maki-config/providers.toml` | Maki provider overrides (Ollama default model) |
+| `workspace/maki-config/AGENTS.md` | Global Maki preferences |
+| `workspace/maki-config/skills/network-tools` | Network tools skill |
 | `workspace/` | Your project files |
 
-You can edit files on the host while the VM is running. Changing `workspace/pi-config/models.json` takes effect the next time you start the VM.
+You can edit files on the host while the VM is running. Changing
+`workspace/maki-config/` takes effect the next time you start the VM.
 
 ## Whitelist management
 
@@ -185,7 +201,7 @@ curl -v https://example.com
 | `lib/sandbox-config.nix` | Shared network and workspace defaults |
 | `host/mitmproxy/whitelist-addon.py` | mitmproxy whitelist addon |
 | `host/pi-sandbox-whitelist` | Host-side whitelist management CLI |
-| `host/pi-defaults/` | Default Pi config templates |
+| `host/maki-defaults/` | Default Maki config templates |
 | `skills/network-tools/` | VM-side helper scripts |
 | `workspace/` | Shared workspace (created on first run) |
 

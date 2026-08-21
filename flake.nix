@@ -1,5 +1,5 @@
 {
-  description = "Pi sandbox: NixOS VM with host-kernel network isolation and a shared workspace";
+  description = "Maki sandbox: NixOS VM with host-kernel network isolation and a shared workspace";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -11,6 +11,20 @@
       pkgs = nixpkgs.legacyPackages.${system};
       lib = nixpkgs.lib;
       sandbox = import ./lib/sandbox-config.nix;
+
+      # Maki coding agent: pre-built static binary fetched from GitHub Releases.
+      maki = pkgs.stdenv.mkDerivation {
+        pname = "maki";
+        version = sandbox.makiVersion;
+        src = pkgs.fetchurl {
+          url = "https://github.com/tontinton/maki/releases/download/v${sandbox.makiVersion}/maki-v${sandbox.makiVersion}-x86_64-unknown-linux-musl.tar.gz";
+          hash = lib.fakeHash; # TODO: pin via `nix-prefetch-url` and replace
+        };
+        sourceRoot = ".";
+        installPhase = ''
+          install -Dm755 maki $out/bin/maki
+        '';
+      };
 
       # NixOS module describing the VM.
       vmModule = { config, pkgs, ... }: {
@@ -34,7 +48,7 @@
           # so it works regardless of the repository location.
           virtualisation.sharedDirectories = {
             workspace = {
-              source = "$PI_SANDBOX_WORKSPACE";
+              source = "$MAKI_SANDBOX_WORKSPACE";
               target = sandbox.workspaceVmMountPoint;
               securityModel = "passthrough";
             };
@@ -56,7 +70,7 @@
         networking.nftables.enable = false;
 
         environment.systemPackages = with pkgs; [
-          nodejs_24
+          maki
           git
           curl
           wget
@@ -64,14 +78,10 @@
           bind
         ];
 
-        environment.extraInit = ''
-          export PATH="$PATH:/root/.npm-global/bin:/root/.npm-global/lib/node_modules/.bin"
-        '';
-
         environment.variables = {
-          NPM_CONFIG_PREFIX = "/root/.npm-global";
           EDITOR = "vim";
           VISUAL = "vim";
+          OLLAMA_HOST = "http://${sandbox.ollamaIp}:${toString sandbox.ollamaPort}";
           # Route all HTTP/HTTPS through the host whitelist proxy. Direct
           # outbound TCP 80/443 is still dropped by the host firewall, so a
           # process that ignores these variables cannot bypass the proxy.
@@ -80,20 +90,19 @@
           NO_PROXY = "localhost,127.0.0.1,${sandbox.hostIp}";
         };
 
-        # Symlink Pi runtime config and the pre-installed package tree from the
-        # shared workspace. These paths are populated on the host before the VM
-        # starts.
+        # Symlink Maki config from the shared workspace. These paths are
+        # populated on the host before the VM starts.
         systemd.tmpfiles.rules = [
-          "d /root/.pi/agent 0755 root root -"
-          "L+ /root/.pi/agent/models.json - - - - ${sandbox.workspaceVmMountPoint}/pi-config/models.json"
-          "L+ /root/.pi/agent/settings.json - - - - ${sandbox.workspaceVmMountPoint}/pi-config/settings.json"
-          "L+ /root/.pi/agent/skills/network-tools - - - - ${sandbox.workspaceVmMountPoint}/pi-config/skills/network-tools"
-          "L+ /root/.npm-global - - - - ${sandbox.workspaceVmMountPoint}/pi-npm"
+          "d ${sandbox.makiConfigDir} 0755 root root -"
+          "L+ ${sandbox.makiConfigDir}/config.toml - - - - ${sandbox.workspaceVmMountPoint}/maki-config/config.toml"
+          "L+ ${sandbox.makiConfigDir}/providers.toml - - - - ${sandbox.workspaceVmMountPoint}/maki-config/providers.toml"
+          "L+ ${sandbox.makiConfigDir}/AGENTS.md - - - - ${sandbox.workspaceVmMountPoint}/maki-config/AGENTS.md"
+          "L+ ${sandbox.makiConfigDir}/skills/network-tools - - - - ${sandbox.workspaceVmMountPoint}/maki-config/skills/network-tools"
         ];
 
         users.motd = ''
           ╔═══════════════════════════════════════════════════════════╗
-          ║         Welcome to the Pi Sandbox!                      ║
+          ║         Welcome to the Maki Sandbox!                    ║
           ╠═══════════════════════════════════════════════════════════╣
           ║                                                           ║
           ║  NETWORK MODE: WHITELISTED                                ║
@@ -106,7 +115,7 @@
           ║  Maps to host:     ./${sandbox.workspaceHostPath}/                                    ║
           ║                                                           ║
           ║  Quick commands:                                          ║
-          ║    pi                         # Start Pi agent            ║
+          ║    maki                       # Start Maki agent          ║
           ║    dig example.com            # Test DNS                  ║
           ║    curl http://${sandbox.ollamaIp}:${toString sandbox.ollamaPort}/ # Ollama  ║
           ║    curl -v https://example.com  # Blocked until whitelisted ║
@@ -121,7 +130,7 @@
 
       builtVm = vm.config.system.build.vm;
 
-      runScript = pkgs.writeShellScriptBin "pi" ''
+      runScript = pkgs.writeShellScriptBin "maki" ''
         set -euo pipefail
 
         REPO_ROOT=$(pwd)
@@ -143,80 +152,22 @@
           exit 1
         fi
 
-        # Ensure Node.js, npm and Python are available regardless of host PATH.
-        export PATH="${pkgs.nodejs}/bin:${pkgs.python3}/bin:$PATH"
-
         # Prepare the workspace.
-        mkdir -p "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/skills"
-        mkdir -p "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm"
+        mkdir -p "$REPO_ROOT/${sandbox.workspaceHostPath}/maki-config/skills"
 
-        # Seed Pi agent configuration from defaults if missing.
-        for f in pi-version models.json settings.json; do
-          if [ ! -f "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/$f" ] && [ -f "$REPO_ROOT/host/pi-defaults/$f" ]; then
-            cp "$REPO_ROOT/host/pi-defaults/$f" "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/$f"
+        # Seed Maki configuration from defaults if missing.
+        for f in config.toml providers.toml AGENTS.md; do
+          if [ ! -f "$REPO_ROOT/${sandbox.workspaceHostPath}/maki-config/$f" ] && [ -f "$REPO_ROOT/host/maki-defaults/$f" ]; then
+            cp "$REPO_ROOT/host/maki-defaults/$f" "$REPO_ROOT/${sandbox.workspaceHostPath}/maki-config/$f"
           fi
         done
 
         # Keep the network-tools skill in sync with the repo copy.
-        rm -rf "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/skills/network-tools"
-        cp -r "$REPO_ROOT/skills/network-tools" "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/skills/network-tools"
-
-        # Install or update the pinned Pi version on the host.
-        PI_VERSION=$(cat "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/pi-version" 2>/dev/null || echo "${sandbox.piVersion}")
-        INSTALLED_VERSION=""
-        for candidate in \
-          "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/lib/node_modules/@earendil-works/pi-coding-agent/package.json" \
-          "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/node_modules/@earendil-works/pi-coding-agent/package.json"; do
-          if [ -f "$candidate" ]; then
-            INSTALLED_VERSION=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("version",""))' < "$candidate")
-            break
-          fi
-        done
-        if [ "$INSTALLED_VERSION" != "$PI_VERSION" ]; then
-          echo "📦 Installing Pi $PI_VERSION into ./${sandbox.workspaceHostPath}/pi-npm..."
-          npm install --ignore-scripts --prefix "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm" \
-            "@earendil-works/pi-coding-agent@$PI_VERSION"
-        else
-          echo "✅ Pi $PI_VERSION already installed in ./${sandbox.workspaceHostPath}/pi-npm"
-        fi
-
-        # Find the installed Pi package on the host, then compute the path
-        # the wrapper will see inside the VM (/mnt/shared/...).
-        PI_BIN="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/bin"
-        PI_PKG_HOST=""
-        PI_PKG_VM=""
-        for rel in \
-          "lib/node_modules/@earendil-works/pi-coding-agent" \
-          "node_modules/@earendil-works/pi-coding-agent"; do
-          candidate_host="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/$rel"
-          if [ -f "$candidate_host/package.json" ]; then
-            PI_PKG_HOST="$candidate_host"
-            PI_PKG_VM="${sandbox.workspaceVmMountPoint}/pi-npm/$rel"
-            break
-          fi
-        done
-
-        if [ -z "$PI_PKG_HOST" ]; then
-          echo "❌ Could not find installed @earendil-works/pi-coding-agent package" >&2
-          echo "   Looked under ./${sandbox.workspaceHostPath}/pi-npm/lib/node_modules and ./node_modules" >&2
-          exit 1
-        fi
-
-        PI_CLI_VM="$PI_PKG_VM/dist/cli.js"
-        mkdir -p "$PI_BIN"
-        # Always recreate the wrapper so the VM-mounted path stays correct even
-        # if the workspace was created by an older version of this script.
-        if [ -f "$PI_PKG_HOST/dist/cli.js" ]; then
-          cat > "$PI_BIN/pi" <<EOF
-#!/usr/bin/env bash
-exec ${pkgs.nodejs}/bin/node "$PI_CLI_VM" "\$@"
-EOF
-          chmod +x "$PI_BIN/pi"
-          echo "   Created $PI_BIN/pi wrapper"
-        fi
+        rm -rf "$REPO_ROOT/${sandbox.workspaceHostPath}/maki-config/skills/network-tools"
+        cp -r "$REPO_ROOT/skills/network-tools" "$REPO_ROOT/${sandbox.workspaceHostPath}/maki-config/skills/network-tools"
 
         echo ""
-        echo "Starting Pi sandbox VM..."
+        echo "Starting Maki sandbox VM..."
         echo "  Workspace host path: $REPO_ROOT/${sandbox.workspaceHostPath}"
         echo "  Workspace VM mount:  ${sandbox.workspaceVmMountPoint}"
         echo "  VM IP:               ${sandbox.vmIp}"
@@ -224,7 +175,7 @@ EOF
         echo "  DNS:                 ${lib.concatStringsSep ", " sandbox.dns}"
         echo ""
 
-        export PI_SANDBOX_WORKSPACE="$REPO_ROOT/${sandbox.workspaceHostPath}"
+        export MAKI_SANDBOX_WORKSPACE="$REPO_ROOT/${sandbox.workspaceHostPath}"
 
         cd "$REPO_ROOT"
         exec "${builtVm}/bin/run-nixos-vm" "$@"
@@ -234,36 +185,34 @@ EOF
       apps.${system} = {
         default = {
           type = "app";
-          program = "${runScript}/bin/pi";
+          program = "${runScript}/bin/maki";
         };
-        pi = {
+        maki = {
           type = "app";
-          program = "${runScript}/bin/pi";
+          program = "${runScript}/bin/maki";
         };
       };
 
       nixosModules.default = import ./nixos-module.nix;
 
       devShells.${system}.default = pkgs.mkShell {
-        name = "pi-sandbox";
+        name = "maki-sandbox";
         buildInputs = with pkgs; [
           nixpkgs-fmt
           nil
-          nodejs
-          python3
           nftables
           iproute2
           mitmproxy
         ];
         shellHook = ''
-          echo "Pi Sandbox development shell"
+          echo "Maki Sandbox development shell"
           echo ""
           echo "Host setup (import in NixOS configuration):"
           echo "  services.pi-sandbox.enable = true;"
           echo "  services.pi-sandbox.user = \"\$USER\";"
           echo ""
           echo "Run the sandbox:"
-          echo "  nix run .#pi"
+          echo "  nix run .#maki"
           echo ""
         '';
       };
