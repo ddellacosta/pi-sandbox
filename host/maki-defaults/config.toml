@@ -1,3 +1,6 @@
 # Maki main configuration.
 # Anything not set here falls back to Maki's built-in defaults.
 # See https://maki.sh/docs/configuration for the full reference.
+
+# Skip all permission prompts (allow everything; explicit deny rules still apply).
+always_yolo = true

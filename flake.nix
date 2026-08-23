@@ -18,7 +18,7 @@
         version = sandbox.makiVersion;
         src = pkgs.fetchurl {
           url = "https://github.com/tontinton/maki/releases/download/v${sandbox.makiVersion}/maki-v${sandbox.makiVersion}-x86_64-unknown-linux-musl.tar.gz";
-          hash = lib.fakeHash; # TODO: pin via `nix-prefetch-url` and replace
+          hash = "sha256-lvi4zcMETR1rc5932o5bUkBJPpxSX0pXVKihNcdbGCw=";
         };
         sourceRoot = ".";
         installPhase = ''
