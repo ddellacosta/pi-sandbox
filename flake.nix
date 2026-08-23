@@ -50,7 +50,7 @@
             workspace = {
               source = "$MAKI_SANDBOX_WORKSPACE";
               target = sandbox.workspaceVmMountPoint;
-              securityModel = "passthrough";
+              securityModel = "mapped-xattr";
             };
           };
         };
