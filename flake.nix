@@ -18,7 +18,7 @@
         version = sandbox.makiVersion;
         src = pkgs.fetchurl {
           url = "https://github.com/tontinton/maki/releases/download/v${sandbox.makiVersion}/maki-v${sandbox.makiVersion}-x86_64-unknown-linux-musl.tar.gz";
-          hash = "sha256-lvi4zcMETR1rc5932o5bUkBJPpxSX0pXVKihNcdbGCw=";
+          hash = "sha256-k2GcRBiDbm1M4/ipgL3frMxiAxkAMdqVSgYg9ggPTbg=";
         };
         sourceRoot = ".";
         installPhase = ''
@@ -76,6 +76,11 @@
           wget
           vim
           bind
+          chafa
+          tesseract
+          imagemagick
+          python314
+          python314Packages.pillow
         ];
 
         environment.variables = {

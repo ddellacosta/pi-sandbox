@@ -9,6 +9,6 @@
   dns = [ "9.9.9.9" "1.1.1.1" ];
   workspaceHostPath = "workspace";
   workspaceVmMountPoint = "/mnt/shared";
-  makiVersion = "0.4.11";
+  makiVersion = "0.4.12";
   makiConfigDir = "/root/.config/maki";
 }
