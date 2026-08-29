@@ -1,17 +1,3 @@
 {
-  "providers": {
-    "ollama": {
-      "baseUrl": "http://10.0.3.1:11434/v1",
-      "api": "openai-completions",
-      "apiKey": "ollama",
-      "models": [
-        { "id": "qwen3.5:cloud", "contextWindow": 512000 },
-        { "id": "kimi-k3:cloud", "contextWindow": 512000 },
-        { "id": "glm-5.2:cloud", "contextWindow": 512000 },
-        { "id": "deepseek-v4-flash:cloud", "contextWindow": 512000 },
-        { "id": "gemma4:cloud", "contextWindow": 512000 },
-        { "id": "llama3.1:8b", "contextWindow": 512000 }
-      ]
-    }
-  }
+  "providers": {}
 }

@@ -78,6 +78,7 @@
           HTTP_PROXY = "http://${sandbox.hostIp}:8080";
           HTTPS_PROXY = "http://${sandbox.hostIp}:8080";
           NO_PROXY = "localhost,127.0.0.1,${sandbox.hostIp}";
+          NODE_COMPILE_CACHE = "/root/.pi-compile-cache";
         };
 
         # Symlink Pi runtime config and the pre-installed package tree from the
@@ -160,6 +161,11 @@
         # Keep the network-tools skill in sync with the repo copy.
         rm -rf "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/skills/network-tools"
         cp -r "$REPO_ROOT/skills/network-tools" "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/skills/network-tools"
+
+        # Keep the ollama-models extension in sync with the repo copy.
+        mkdir -p "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/extensions"
+        rm -f "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/extensions/ollama-models.ts"
+        cp "$REPO_ROOT/extensions/ollama-models.ts" "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/extensions/ollama-models.ts"
 
         # Install or update the pinned Pi version on the host.
         PI_VERSION=$(cat "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/pi-version" 2>/dev/null || echo "${sandbox.piVersion}")
