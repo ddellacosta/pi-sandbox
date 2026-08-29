@@ -92,27 +92,62 @@
           "L+ /root/.npm-global - - - - ${sandbox.workspaceVmMountPoint}/pi-npm"
         ];
 
-        users.motd = ''
-          ╔═══════════════════════════════════════════════════════════╗
-          ║         Welcome to the Pi Sandbox!                      ║
-          ╠═══════════════════════════════════════════════════════════╣
-          ║                                                           ║
-          ║  NETWORK MODE: WHITELISTED                                ║
-          ║  • DNS resolvers: ${lib.concatStringsSep ", " sandbox.dns}                            ║
-          ║  • Ollama host:   ${sandbox.ollamaIp}:${toString sandbox.ollamaPort}                             ║
-          ║  • Whitelist proxy: ${sandbox.hostIp}:8080                             ║
-          ║  • Direct TCP 80/443 to internet is blocked             ║
-          ║                                                           ║
-          ║  Shared workspace: ${sandbox.workspaceVmMountPoint}                            ║
-          ║  Maps to host:     ./${sandbox.workspaceHostPath}/                                    ║
-          ║                                                           ║
-          ║  Quick commands:                                          ║
-          ║    pi                         # Start Pi agent            ║
-          ║    dig example.com            # Test DNS                  ║
-          ║    curl http://${sandbox.ollamaIp}:${toString sandbox.ollamaPort}/ # Ollama  ║
-          ║    curl -v https://example.com  # Blocked until whitelisted ║
-          ╚═══════════════════════════════════════════════════════════╝
-        '';
+        # MOTD box. The border and padding are computed, not hand-drawn: the
+        # box widens to fit the longest line, so interpolated config values
+        # (IPs, ports, paths) can never push the right border out of alignment.
+        users.motd =
+          let
+            sp = n: builtins.concatStringsSep "" (builtins.genList (_: " ") n);
+            bar = n: builtins.concatStringsSep "" (builtins.genList (_: "═") n);
+            half = n: n / 2; # integer division, tested
+
+            # Nix string primitives count bytes, not terminal columns: the
+            # • bullet is 3 bytes but renders 1 column wide. Compensate so the
+            # border stays aligned on bullet lines.
+            colWidth = l:
+              builtins.stringLength l
+              - 2 * ((builtins.length (builtins.split "•" l) - 1) / 2);
+
+            title = "Welcome to the Pi Sandbox!";
+            commands = [
+              [ "pi" "# Start Pi agent" ]
+              [ "dig example.com" "# Test DNS" ]
+              [ "curl http://${sandbox.ollamaIp}:${toString sandbox.ollamaPort}/" "# Ollama" ]
+              [ "curl -v https://example.com" "# Blocked until whitelisted" ]
+            ];
+            cmdWidth = builtins.foldl'
+              (w: c:
+                if builtins.stringLength (builtins.elemAt c 0) > w
+                then builtins.stringLength (builtins.elemAt c 0) else w)
+              0 commands;
+            cmdRow = c:
+              "    ${builtins.elemAt c 0}${sp (cmdWidth - builtins.stringLength (builtins.elemAt c 0))}  ${builtins.elemAt c 1}";
+            content = [
+              ""
+              "  NETWORK MODE: WHITELISTED"
+              "  • DNS resolvers: ${builtins.concatStringsSep ", " sandbox.dns}"
+              "  • Ollama host: ${sandbox.ollamaIp}:${toString sandbox.ollamaPort}"
+              "  • Whitelist proxy: ${sandbox.hostIp}:8080"
+              "  • Direct TCP 80/443 to internet is blocked"
+              ""
+              "  Shared workspace: ${sandbox.workspaceVmMountPoint}"
+              "  Maps to host: ./${sandbox.workspaceHostPath}/"
+              ""
+              "  Quick commands:"
+            ] ++ map cmdRow commands;
+            width = builtins.foldl'
+              (w: l: if colWidth l > w then colWidth l else w)
+              (colWidth title) content;
+            gap = width - colWidth title;
+            row = l: "║ ${l}${sp (width - colWidth l)} ║";
+          in
+            builtins.concatStringsSep "\n" ([
+              "╔${bar (width + 2)}╗"
+              "║ ${sp (half gap)}${title}${sp (gap - half gap)} ║"
+              "╠${bar (width + 2)}╣"
+            ] ++ map row content ++ [
+              "╚${bar (width + 2)}╝"
+            ]);
       };
 
       vm = nixpkgs.lib.nixosSystem {
