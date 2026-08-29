@@ -16,25 +16,25 @@ The VM is attached to the host through a bridge (`br-pi`) and a TAP device (`pi-
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────┐
-│  NixOS host                                   │
-│  • br-pi bridge (10.0.3.1/24)                 │
-│  • pi-tap connected to br-pi                    │
-│  • mitmproxy whitelist proxy on 10.0.3.1:8080 │
-│  • nftables table inet pi-sandbox              │
-│    drops everything from br-pi except DNS,    │
-│    Ollama, and the whitelist proxy             │
-│  • Whitelist file: /etc/pi-sandbox/whitelist.conf │
-└──────────────┬───────────────────────────────────┘
-               │ pi-tap
-┌──────────────▼───────────────────────────────────┐
-│  NixOS VM                                       │
-│  • eth0: 10.0.3.2/24                            │
-│  • default gateway: 10.0.3.1                     │
-│  • HTTP_PROXY/HTTPS_PROXY = http://10.0.3.1:8080 │
-│  • /mnt/shared workspace via 9p                  │
-│  • Pi process runs here                         │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  NixOS host                                          │
+│  • br-pi bridge (10.0.3.1/24)                        │
+│  • pi-tap connected to br-pi                         │
+│  • mitmproxy whitelist proxy on 10.0.3.1:8080        │
+│  • nftables table inet pi-sandbox                    │
+│    drops everything from br-pi except DNS,           │
+│    Ollama, and the whitelist proxy                   │
+│  • Whitelist file: /etc/pi-sandbox/whitelist.conf    │
+└────────────┬─────────────────────────────────────────┘
+             │ pi-tap
+┌────────────▼─────────────────────────────────────────┐
+│  NixOS VM                                            │
+│  • eth0: 10.0.3.2/24                                 │
+│  • default gateway: 10.0.3.1                         │
+│  • HTTP_PROXY/HTTPS_PROXY = http://10.0.3.1:8080     │
+│  • /mnt/shared workspace via 9p                      │
+│  • Pi process runs here                              │
+└──────────────────────────────────────────────────────┘
 ```
 
 ## Setup
