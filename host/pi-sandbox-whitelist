@@ -107,7 +107,7 @@ list_domains() {
         [[ "$domain" =~ ^#.*$ ]] && continue
         [[ -z "$domain" ]] && continue
         echo "  • $domain"
-        ((count++))
+        count=$((count + 1))
     done < "$WHITELIST_FILE"
 
     if [ $count -eq 0 ]; then
