@@ -56,12 +56,14 @@
         networking.nftables.enable = false;
 
         environment.systemPackages = with pkgs; [
-          nodejs_24
-          git
-          curl
-          wget
-          vim
           bind
+          curl
+          fd
+          git
+          nodejs_24
+          ripgrep
+          vim
+          wget
         ];
 
         environment.extraInit = ''
