@@ -2,6 +2,9 @@
   "defaultProvider": "ollama",
   "defaultModel": "deepseek-v4-pro:cloud",
   "skills": ["/root/.pi/agent/skills/network-tools"],
-  "extensions": ["/mnt/shared/pi-config/extensions/ollama-models.ts"],
+  "extensions": [
+    "/mnt/shared/pi-config/extensions/ollama-models.ts",
+    "/mnt/shared/pi-config/extensions/session-tags.ts"
+  ],
   "externalEditor": "vim"
 }

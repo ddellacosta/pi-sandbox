@@ -199,10 +199,14 @@
         rm -rf "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/skills/network-tools"
         cp -r "$REPO_ROOT/skills/network-tools" "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/skills/network-tools"
 
-        # Keep the ollama-models extension in sync with the repo copy.
-        mkdir -p "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/extensions"
-        rm -f "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/extensions/ollama-models.ts"
-        cp "$REPO_ROOT/extensions/ollama-models.ts" "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/extensions/ollama-models.ts"
+        # Keep pi extensions in sync with the repo copy. Every .ts file in
+        # the repo-root extensions/ directory is copied into the shared
+        # pi-config, which settings.json references by absolute path.
+        mkdir -p "$REPO_ROOT/extensions" "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/extensions"
+        for ext in "$REPO_ROOT"/extensions/*.ts; do
+          [ -e "$ext" ] || continue
+          cp "$ext" "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/extensions/"
+        done
 
         # Install or update the pinned Pi version on the host.
         PI_VERSION=$(cat "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-config/pi-version" 2>/dev/null || echo "${sandbox.piVersion}")
