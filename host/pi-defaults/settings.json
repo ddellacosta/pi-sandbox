@@ -4,7 +4,8 @@
   "skills": ["/root/.pi/agent/skills/network-tools"],
   "extensions": [
     "/mnt/shared/pi-config/extensions/ollama-models.ts",
-    "/mnt/shared/pi-config/extensions/session-tags.ts"
+    "/mnt/shared/pi-config/extensions/session-tags.ts",
+    "/mnt/shared/pi-config/extensions/image-downscale.ts"
   ],
   "externalEditor": "vim"
 }
