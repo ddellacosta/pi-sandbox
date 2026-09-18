@@ -22,6 +22,9 @@
           # Console only.
           virtualisation.graphics = false;
 
+          virtualisation.memorySize = sandbox.vmMemoryMb;
+          virtualisation.cores = sandbox.vmCores;
+
           # Replace the default QEMU user-mode networking with a TAP interface
           # connected to the host bridge. Real filtering happens on the host.
           virtualisation.qemu.networkingOptions = lib.mkForce [
@@ -74,6 +77,7 @@
           NPM_CONFIG_PREFIX = "/root/.npm-global";
           EDITOR = "vim";
           VISUAL = "vim";
+          TERM_PROGRAM = "kitty"; # pretty pics
           # Route all HTTP/HTTPS through the host whitelist proxy. Direct
           # outbound TCP 80/443 is still dropped by the host firewall, so a
           # process that ignores these variables cannot bypass the proxy.

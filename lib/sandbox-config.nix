@@ -10,4 +10,6 @@
   workspaceHostPath = "workspace";
   workspaceVmMountPoint = "/mnt/shared";
   piVersion = "0.84.2";
+  vmMemoryMb = 4096;
+  vmCores = 4;
 }
