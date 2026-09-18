@@ -17,3 +17,6 @@ result-*
 # Generated runtime state (created on first run)
 workspace/pi-npm/
 workspace/pi-config/
+# Single-archive + stamp used to materialize pi-npm on the VM's local disk
+workspace/pi-npm.tar
+workspace/pi-npm.stamp

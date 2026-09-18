@@ -24,6 +24,7 @@
 
           virtualisation.memorySize = sandbox.vmMemoryMb;
           virtualisation.cores = sandbox.vmCores;
+          virtualisation.diskSize = sandbox.vmDiskSizeMb;
 
           # Replace the default QEMU user-mode networking with a TAP interface
           # connected to the host bridge. Real filtering happens on the host.
@@ -97,6 +98,47 @@
           "L+ /root/.pi/agent/skills/network-tools - - - - ${sandbox.workspaceVmMountPoint}/pi-config/skills/network-tools"
           "L+ /root/.npm-global - - - - ${sandbox.workspaceVmMountPoint}/pi-npm"
         ];
+
+        # Pi's package tree (13k+ files) otherwise lives on the 9p share, where
+        # a single stat costs ~0.8 ms; Node touches essentially all of it at
+        # startup, so that walk dominates launch time. Stream ONE archive over
+        # 9p and extract it to local disk instead. The stamp comparison makes
+        # this a no-op on every boot after the first, and re-runs exactly once
+        # after a Pi version bump.
+        systemd.services.pi-npm-local = {
+          description = "Materialize the Pi package on the VM's local disk";
+          wantedBy = [ "multi-user.target" ];
+          before = [ "getty.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = pkgs.writeShellScript "pi-npm-local" ''
+              set -eu
+              src=${sandbox.workspaceVmMountPoint}
+              dst=/var/lib/pi-npm
+              tmp="$dst.new"
+              want="$(cat "$src/pi-npm.stamp" 2>/dev/null || echo missing)"
+              have="$(cat "$dst/.stamp" 2>/dev/null || echo none)"
+              if [ "$want" = "missing" ]; then
+                echo "pi-npm.stamp absent from $src; keeping existing $dst" >&2
+                exit 0
+              fi
+              if [ "$want" != "$have" ] && [ -f "$src/pi-npm.tar" ]; then
+                echo "Materializing Pi package on local disk (stamp $want)..."
+                # tar is not on the systemd service PATH; the system profile is
+                # not included, so always use the store path. Extract to a scratch
+                # dir first so a failed/partial extract can never leave $dst
+                # half-populated with no pi in it.
+                rm -rf "$tmp"
+                mkdir -p "$tmp"
+                ${pkgs.gnutar}/bin/tar -xf "$src/pi-npm.tar" -C "$tmp"
+                printf '%s\n' "$want" > "$tmp/.stamp"
+                rm -rf "$dst"
+                mv "$tmp" "$dst"
+              fi
+            '';
+          };
+        };
 
         # MOTD box. The border and padding are computed, not hand-drawn: the
         # box widens to fit the longest line, so interpolated config values
@@ -235,6 +277,7 @@
         # the wrapper will see inside the VM (/mnt/shared/...).
         PI_BIN="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/bin"
         PI_PKG_HOST=""
+        PI_PKG_REL=""
         PI_PKG_VM=""
         for rel in \
           "lib/node_modules/@earendil-works/pi-coding-agent" \
@@ -242,6 +285,7 @@
           candidate_host="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm/$rel"
           if [ -f "$candidate_host/package.json" ]; then
             PI_PKG_HOST="$candidate_host"
+            PI_PKG_REL="$rel"
             PI_PKG_VM="${sandbox.workspaceVmMountPoint}/pi-npm/$rel"
             break
           fi
@@ -253,17 +297,37 @@
           exit 1
         fi
 
-        PI_CLI_VM="$PI_PKG_VM/dist/cli.js"
         mkdir -p "$PI_BIN"
-        # Always recreate the wrapper so the VM-mounted path stays correct even
-        # if the workspace was created by an older version of this script.
+        # Recreate the wrapper on every run. It resolves the package relative to
+        # its own location, so the identical tree works both on the 9p share and
+        # in the local-disk copy the VM materializes at boot.
         if [ -f "$PI_PKG_HOST/dist/cli.js" ]; then
           cat > "$PI_BIN/pi" <<EOF
 #!/usr/bin/env bash
-exec ${pkgs.nodejs}/bin/node "$PI_CLI_VM" "\$@"
+HERE="\$(cd -- "\$(dirname -- "\$0")" && pwd -P)"
+# Prefer the copy the VM materialized on local disk; fall back to this (9p)
+# tree if materialization hasn't run or failed. The wrapper itself always
+# lives on the share, so `pi` is on PATH regardless.
+CLI=/var/lib/pi-npm/$PI_PKG_REL/dist/cli.js
+[ -f "\$CLI" ] || CLI="\$HERE/../$PI_PKG_REL/dist/cli.js"
+exec ${pkgs.nodejs}/bin/node "\$CLI" "\$@"
 EOF
           chmod +x "$PI_BIN/pi"
           echo "   Created $PI_BIN/pi wrapper"
+        fi
+
+        # Pack the pi-npm tree into a single archive. The VM streams this over
+        # 9p in one sequential read and extracts it to local disk, which avoids
+        # the ~0.8 ms-per-stat walk over 13k files in the guest. The stamp ties
+        # the archive to (version + wrapper) so a change triggers one repack and
+        # one re-extract, and nothing in between.
+        PI_STAMP="$PI_VERSION:$(sha256sum "$PI_BIN/pi" | cut -c1-12)"
+        PI_STAMP_FILE="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm.stamp"
+        PI_TAR_FILE="$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm.tar"
+        if [ "$(cat "$PI_STAMP_FILE" 2>/dev/null || true)" != "$PI_STAMP" ] || [ ! -f "$PI_TAR_FILE" ]; then
+          echo "📦 Packing Pi for local-disk materialization..."
+          ( cd "$REPO_ROOT/${sandbox.workspaceHostPath}/pi-npm" && ${pkgs.gnutar}/bin/tar -cf ../pi-npm.tar . )
+          printf '%s\n' "$PI_STAMP" > "$PI_STAMP_FILE"
         fi
 
         echo ""
